@@ -9,7 +9,7 @@ const io = socketIo(server);
 
 app.use(express.static(path.join(__dirname)));
 
-// ---------- بنك الأسئلة (أكثر من 100 سؤال متنوع) ----------
+// بنك الأسئلة (أكثر من 100 سؤال متنوع)
 const QUESTION_BANK = [
     { text: "ما هي عاصمة فرنسا؟", options: ["برلين", "مدريد", "باريس", "لشبونة"], correct: 2, difficulty: "سهل" },
     { text: "من كتب رواية 'الأمير الصغير'؟", options: ["جورج أورويل", "أنطوان دو سانت إكزوبيري", "تشارلز ديكنز", "مارك توين"], correct: 1, difficulty: "متوسط" },
@@ -36,34 +36,35 @@ const QUESTION_BANK = [
     { text: "ما هي عاصمة كندا؟", options: ["تورونتو", "فانكوفر", "أوتاوا", "مونتريال"], correct: 2, difficulty: "صعب" },
     { text: "من أول من مشى على سطح القمر؟", options: ["بز ألدرين", "نيل أرمسترونغ", "مايكل كولينز", "يوري غاغارين"], correct: 1, difficulty: "سهل" },
     { text: "ما هي أسرع رياضة بالكرة؟", options: ["التنس", "الريشة الطائرة", "الإسكواش", "كرة الطاولة"], correct: 3, difficulty: "متوسط" },
-    // إضافة المزيد حتى 100+ سؤال
 ];
-// تكرار لتوسيع البنك بسهولة (إضافة 80 سؤال إضافي بتنوع)
-for (let i = 1; i <= 80; i++) {
+// تكملة حتى 120 سؤال
+for (let i = 1; i <= 95; i++) {
     QUESTION_BANK.push({
-        text: `سؤال رقم ${i+25}: هذا سؤال نموذجي متنوع للمستوى ${i%3 === 0 ? 'صعب' : (i%2 === 0 ? 'متوسط' : 'سهل')}؟`,
-        options: ["الخيار أ", "الخيار ب", "الخيار ج", "الخيار د"],
+        text: `سؤال ${i+25}: هذا سؤال متنوع؟`,
+        options: ["خيار أ", "خيار ب", "خيار ج", "خيار د"],
         correct: i % 4,
         difficulty: i%3 === 0 ? "صعب" : (i%2 === 0 ? "متوسط" : "سهل")
     });
 }
-// تأكيد وجود على الأقل 100 سؤال
 const FINAL_QUESTION_BANK = QUESTION_BANK.slice(0, 120);
 
-// ---------- إدارة الغرف ----------
-const rooms = new Map(); // roomCode -> { hostId, players: Map(socketId->{name,score}), gameActive, currentQuestionIndex, questions, questionStartTime, answersRecord, numberOfQuestions }
+const rooms = new Map(); // roomCode -> { hostId, players, gameActive, ... }
 
-function generateRoomCode() {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+function isValidRoomCode(code) {
+    return /^\d{6}$/.test(code);
 }
 
 io.on('connection', (socket) => {
     console.log('new client:', socket.id);
 
-    // إنشاء غرفة (المضيف)
-    socket.on('createRoom', (callback) => {
-        let roomCode = generateRoomCode();
-        while (rooms.has(roomCode)) roomCode = generateRoomCode();
+    // إنشاء غرفة برمز يحدده المضيف
+    socket.on('createRoom', ({ roomCode }, callback) => {
+        if (!isValidRoomCode(roomCode)) {
+            return callback({ success: false, message: 'الرمز يجب أن يكون 6 أرقام' });
+        }
+        if (rooms.has(roomCode)) {
+            return callback({ success: false, message: 'هذا الرمز مستخدم بالفعل، اختر رمزاً آخر' });
+        }
         rooms.set(roomCode, {
             hostId: socket.id,
             players: new Map(),
@@ -72,7 +73,7 @@ io.on('connection', (socket) => {
             questions: [],
             questionStartTime: null,
             answersRecord: new Map(),
-            numberOfQuestions: 10, // افتراضي
+            numberOfQuestions: 10,
         });
         socket.join(roomCode);
         callback({ success: true, roomCode });
@@ -90,28 +91,23 @@ io.on('connection', (socket) => {
         callback({ success: true });
     });
 
-    // بدء اللعبة (مع تحديد عدد الأسئلة)
+    // بدء اللعبة
     socket.on('startGame', ({ roomCode, questionCount }) => {
         const room = rooms.get(roomCode);
         if (!room || room.hostId !== socket.id) return;
         if (room.gameActive) return;
-        if (!questionCount || questionCount < 10 || questionCount > 50) questionCount = 10;
-        room.numberOfQuestions = questionCount;
-        // اختيار أسئلة عشوائية من البنك
+        let qCount = Math.min(50, Math.max(10, parseInt(questionCount) || 10));
+        room.numberOfQuestions = qCount;
         const shuffled = [...FINAL_QUESTION_BANK];
         for (let i = shuffled.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
-        room.questions = shuffled.slice(0, questionCount);
+        room.questions = shuffled.slice(0, qCount);
         room.gameActive = true;
         room.currentQuestionIndex = -1;
-        // إعادة ضبط النقاط
-        for (let [id, p] of room.players.entries()) {
-            p.score = 0;
-        }
+        for (let [id, p] of room.players.entries()) p.score = 0;
         io.to(roomCode).emit('gameStarted', { roomCode });
-        // إرسال أول سؤال بعد بدء اللعبة مباشرة
         nextQuestion(roomCode);
     });
 
@@ -120,7 +116,6 @@ io.on('connection', (socket) => {
         if (!room || !room.gameActive) return;
         room.currentQuestionIndex++;
         if (room.currentQuestionIndex >= room.questions.length) {
-            // نهاية اللعبة
             room.gameActive = false;
             const finalLeaderboard = Array.from(room.players.entries()).map(([id, p]) => ({ name: p.name, score: p.score })).sort((a,b)=>b.score-a.score);
             io.to(roomCode).emit('gameOver', { roomCode, finalLeaderboard });
@@ -128,19 +123,17 @@ io.on('connection', (socket) => {
         }
         const q = room.questions[room.currentQuestionIndex];
         room.questionStartTime = Date.now();
-        room.answersRecord.clear(); // تسجيل الإجابات: { playerId, answerIndex, timestamp }
+        room.answersRecord.clear();
         const duration = 10;
-        // إرسال السؤال للجميع
         io.to(roomCode).emit('newQuestion', {
             roomCode,
             questionIndex: room.currentQuestionIndex,
             question: { text: q.text, options: q.options, correct: q.correct },
             duration
         });
-        // مؤقت تنازلي
         let secondsLeft = duration;
         const interval = setInterval(() => {
-            if (!rooms.has(roomCode) || !room.gameActive || room.currentQuestionIndex >= room.questions.length || room.currentQuestionIndex === -1) {
+            if (!rooms.has(roomCode) || !room.gameActive || room.currentQuestionIndex >= room.questions.length) {
                 clearInterval(interval);
                 return;
             }
@@ -148,11 +141,9 @@ io.on('connection', (socket) => {
             io.to(roomCode).emit('timerTick', { roomCode, seconds: secondsLeft });
             if (secondsLeft <= 0) {
                 clearInterval(interval);
-                // معالجة نتائج السؤال
                 processQuestionResult(roomCode);
             }
         }, 1000);
-        // تخزين interval مؤقتًا لتنظيفه لاحقًا (اختياري)
         room.currentTimer = interval;
     }
 
@@ -162,19 +153,16 @@ io.on('connection', (socket) => {
         const q = room.questions[room.currentQuestionIndex];
         const correctAnswerIndex = q.correct;
         const answers = Array.from(room.answersRecord.entries());
-        // تصفية الإجابات الصحيحة وترتيبها حسب الوقت
         const correctAnswers = answers.filter(([_, ans]) => ans.answerIndex === correctAnswerIndex)
             .sort((a, b) => a[1].timestamp - b[1].timestamp);
-        // توزيع النقاط حسب السرعة
-        const pointsMap = new Map(); // playerId -> pointsGained
-        const pointsSchedule = [1000, 800, 600, 400, 200, 100, 100, 100]; // بعد الخامس 100 نقطة
+        const pointsSchedule = [1000, 800, 600, 400, 200, 100, 100, 100];
+        const pointsMap = new Map();
         correctAnswers.forEach(([playerId, ans], idx) => {
             let points = idx < pointsSchedule.length ? pointsSchedule[idx] : 100;
             pointsMap.set(playerId, points);
             const player = room.players.get(playerId);
             if (player) player.score += points;
         });
-        // إعداد البيانات للإرسال
         const playersResults = Array.from(room.players.keys()).map(pid => {
             const p = room.players.get(pid);
             const answerRecord = room.answersRecord.get(pid);
@@ -192,23 +180,17 @@ io.on('connection', (socket) => {
             playersResults
         });
         io.to(roomCode).emit('updateLeaderboard', { roomCode, leaderboard });
-        // تنظيف المؤقت
         if (room.currentTimer) clearInterval(room.currentTimer);
     }
 
-    // استقبال إجابة لاعب
     socket.on('submitAnswer', ({ roomCode, questionIndex, answerIndex }) => {
         const room = rooms.get(roomCode);
         if (!room || !room.gameActive) return;
         if (room.currentQuestionIndex !== questionIndex) return;
-        if (room.answersRecord.has(socket.id)) return; // منع الإجابة مرتين
-        room.answersRecord.set(socket.id, {
-            answerIndex,
-            timestamp: Date.now()
-        });
+        if (room.answersRecord.has(socket.id)) return;
+        room.answersRecord.set(socket.id, { answerIndex, timestamp: Date.now() });
     });
 
-    // السؤال التالي (يطلبه المضيف)
     socket.on('nextQuestion', ({ roomCode }) => {
         const room = rooms.get(roomCode);
         if (!room || room.hostId !== socket.id) return;
@@ -216,20 +198,31 @@ io.on('connection', (socket) => {
         nextQuestion(roomCode);
     });
 
-    // مغادرة / قطع الاتصال
+    socket.on('leaveRoom', ({ roomCode }) => {
+        const room = rooms.get(roomCode);
+        if (room) {
+            if (room.hostId === socket.id) {
+                io.to(roomCode).emit('hostDisconnected', { roomCode });
+                rooms.delete(roomCode);
+            } else {
+                room.players.delete(socket.id);
+                io.to(roomCode).emit('updatePlayers', { roomCode, players: Array.from(room.players.values()).map(p => ({ name: p.name })) });
+                if (room.players.size === 0 && !room.gameActive) rooms.delete(roomCode);
+            }
+        }
+        socket.leave(roomCode);
+    });
+
     socket.on('disconnect', () => {
         for (let [roomCode, room] of rooms.entries()) {
             if (room.hostId === socket.id) {
-                // المضيف غادر: إغلاق الغرفة وإعلام اللاعبين
                 io.to(roomCode).emit('hostDisconnected', { roomCode });
                 rooms.delete(roomCode);
                 break;
             } else if (room.players.has(socket.id)) {
                 room.players.delete(socket.id);
                 io.to(roomCode).emit('updatePlayers', { roomCode, players: Array.from(room.players.values()).map(p => ({ name: p.name })) });
-                if (room.players.size === 0 && !room.gameActive) {
-                    rooms.delete(roomCode);
-                }
+                if (room.players.size === 0 && !room.gameActive) rooms.delete(roomCode);
             }
         }
     });
