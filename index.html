@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>سباق المعرفة - لعبة الأسئلة التفاعلية</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb4d); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .game-container { max-width: 1300px; width: 100%; background: rgba(255,255,255,0.1); backdrop-filter: blur(12px); border-radius: 48px; padding: 20px; box-shadow: 0 25px 50px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.3); }
+        .role-selector { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px; }
+        .role-card { background: white; border-radius: 32px; padding: 25px 35px; cursor: pointer; text-align: center; transition: transform 0.2s, box-shadow 0.2s; flex: 1; min-width: 200px; box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+        .role-card:hover { transform: translateY(-8px); box-shadow: 0 20px 30px rgba(0,0,0,0.3); }
+        .role-card h2 { margin-bottom: 10px; color: #1e3c72; }
+        .panel { background: rgba(255,255,255,0.95); border-radius: 32px; padding: 20px 28px; margin-top: 20px; box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+        .hidden { display: none; }
+        .room-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 15px; background: #0f2027; color: white; padding: 15px 20px; border-radius: 60px; margin-bottom: 25px; }
+        .room-code { background: #f9a826; padding: 8px 18px; border-radius: 40px; font-weight: bold; font-size: 1.8rem; letter-spacing: 4px; color: #2d2d2d; }
+        .players-list { background: #eef2f3; border-radius: 28px; padding: 15px; margin: 15px 0; }
+        .players-badge { display: inline-block; background: #2c3e66; color: white; border-radius: 50px; padding: 5px 15px; margin: 5px; }
+        button { background: #ff7e5e; border: none; color: white; padding: 12px 24px; border-radius: 60px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: 0.2s; margin: 8px; }
+        button:hover { background: #feb47b; transform: scale(1.02); }
+        .question-area { background: #fff0e0; border-radius: 32px; padding: 20px; margin: 20px 0; }
+        .timer { font-size: 2.5rem; font-weight: bold; text-align: center; color: #d63447; }
+        .options-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 15px; margin: 20px 0; }
+        .option-btn { background: #2c3e66; color: white; padding: 14px; border-radius: 60px; text-align: center; cursor: pointer; transition: 0.1s linear; }
+        .option-btn:hover:not(.disabled-opt) { background: #fdbb4d; color: #1e1e2a; }
+        .disabled-opt { background: #aaa; cursor: not-allowed; opacity: 0.6; }
+        .leaderboard { background: #e9f1f5; border-radius: 28px; padding: 15px; margin-top: 20px; }
+        .leaderboard table { width: 100%; border-collapse: collapse; }
+        .leaderboard th, .leaderboard td { padding: 8px; border-bottom: 1px solid #ccc; text-align: right; }
+        .correct-stats { background: #c5e0d6; border-radius: 20px; padding: 12px; margin: 10px 0; }
+        input, .question-count-selector { padding: 12px 18px; border-radius: 60px; border: 1px solid #ccc; width: auto; margin: 5px; font-size: 1rem; }
+        .flex-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+        @media (max-width: 700px) { .game-container { padding: 12px; } .room-code { font-size: 1.2rem; } }
+    </style>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+<div class="game-container" id="app">
+    <div id="roleScreen" class="role-selector">
+        <div class="role-card" onclick="selectRole('host')"><h2>🎤 أنشئ غرفة</h2><p>كن المضيف وابدأ اللعبة</p></div>
+        <div class="role-card" onclick="selectRole('player')"><h2>🎮 انضم كلاعب</h2><p>أدخل رمز الغرفة واسمك</p></div>
+    </div>
+
+    <div id="hostPanel" class="panel hidden">
+        <div class="room-header"><div>🔐 رمز الغرفة: <span id="hostRoomCode" class="room-code">------</span></div><div>👥 <span id="hostPlayersCount">0</span> لاعب</div></div>
+        <div id="hostPlayersList" class="players-list">⏳ في انتظار انضمام اللاعبين...</div>
+        <div class="flex-row" style="justify-content: space-between; align-items: center;">
+            <label>📚 عدد الأسئلة (10 - 50):</label>
+            <input type="number" id="questionCountInput" min="10" max="50" value="10" step="1" style="width: 100px;">
+            <button id="startGameBtn" disabled style="background:#1f8a4c;">▶ ابدأ اللعبة</button>
+        </div>
+        <div id="hostGameArea" class="hidden">
+            <div class="question-area"><h2 id="hostQuestionText">السؤال</h2><div id="hostOptions" class="options-grid"></div><div class="timer" id="hostTimer">⏱ 10 ثانية</div></div>
+            <div id="hostResultArea" class="hidden"><div class="correct-stats" id="correctStats"></div><div id="hostLeaderboard" class="leaderboard"><h3>🏆 قائمة المتصدرين</h3><div id="leaderboardTable"></div></div><button id="nextQuestionBtn" style="background:#2c5f8a;">➡ السؤال التالي</button></div>
+        </div>
+        <div id="hostEndGame" class="hidden leaderboard"><h2>🎉 نهاية اللعبة 🎉</h2><div id="finalRanking"></div></div>
+    </div>
+
+    <div id="playerPanel" class="panel hidden">
+        <div class="room-header"><div>🎮 مرحباً: <span id="playerNameSpan">---</span></div><div>🏷 الغرفة: <span id="playerRoomCodeSpan">------</span></div></div>
+        <div id="playerWaiting" class="players-list">⏳ انتظار بدء المضيف للعبة...</div>
+        <div id="playerGameArea" class="hidden">
+            <div class="question-area"><h3 id="playerQuestionText"></h3><div id="playerOptions" class="options-grid"></div><div class="timer" id="playerTimer">⏱ 10</div><div id="playerFeedback" class="status"></div></div>
+            <div id="playerLeaderboardPanel" class="leaderboard"><h3>📊 لوحة المتصدرين</h3><div id="playerLeaderboardTable"></div></div>
+        </div>
+        <div id="playerEndMessage" class="hidden correct-stats"><h3>انتهت اللعبة! شكراً للمشاركة</h3><div id="playerFinalRank"></div></div>
+    </div>
+</div>
+<script>
+    const socket = io();
+    let currentRole = null, roomCodeLocal = null, playerNameLocal = null, isGameActive = false, hasAnswered = false;
+    const hostPanel = document.getElementById('hostPanel'), playerPanel = document.getElementById('playerPanel'), roleScreen = document.getElementById('roleScreen');
+    const hostRoomCodeSpan = document.getElementById('hostRoomCode'), hostPlayersListDiv = document.getElementById('hostPlayersList'), startGameBtn = document.getElementById('startGameBtn');
+    const hostGameArea = document.getElementById('hostGameArea'), hostResultArea = document.getElementById('hostResultArea'), hostQuestionText = document.getElementById('hostQuestionText');
+    const hostOptionsDiv = document.getElementById('hostOptions'), hostTimerSpan = document.getElementById('hostTimer'), correctStatsDiv = document.getElementById('correctStats');
+    const leaderboardTableDiv = document.getElementById('leaderboardTable'), nextQuestionBtn = document.getElementById('nextQuestionBtn'), hostEndGameDiv = document.getElementById('hostEndGame');
+    const hostPlayersCountSpan = document.getElementById('hostPlayersCount'), questionCountInput = document.getElementById('questionCountInput');
+    const playerNameSpan = document.getElementById('playerNameSpan'), playerRoomCodeSpan = document.getElementById('playerRoomCodeSpan'), playerWaitingDiv = document.getElementById('playerWaiting');
+    const playerGameArea = document.getElementById('playerGameArea'), playerQuestionText = document.getElementById('playerQuestionText'), playerOptionsDiv = document.getElementById('playerOptions');
+    const playerTimerSpan = document.getElementById('playerTimer'), playerFeedback = document.getElementById('playerFeedback'), playerLeaderboardTable = document.getElementById('playerLeaderboardTable');
+    const playerEndMessage = document.getElementById('playerEndMessage'), playerFinalRank = document.getElementById('playerFinalRank');
+
+    function selectRole(role) { currentRole = role; roleScreen.classList.add('hidden'); if(role === 'host') { hostPanel.classList.remove('hidden'); createRoom(); } else { playerPanel.classList.remove('hidden'); askPlayerJoin(); } }
+    function createRoom() { socket.emit('createRoom', (response) => { if(response.success) { roomCodeLocal = response.roomCode; hostRoomCodeSpan.innerText = roomCodeLocal; } else { alert('خطأ في إنشاء الغرفة'); location.reload(); } }); }
+    function askPlayerJoin() {
+        const code = prompt("📲 أدخل رمز الغرفة المكون من 6 أرقام:");
+        if(!code || code.length !== 6) { alert("رمز غير صحيح"); location.reload(); return; }
+        const name = prompt("👤 أدخل اسمك:", "لاعب"+Math.floor(Math.random()*1000));
+        if(!name) { alert("الاسم مطلوب"); location.reload(); return; }
+        playerNameLocal = name;
+        socket.emit('joinRoom', { roomCode: code, playerName: name }, (res) => {
+            if(res.success) { roomCodeLocal = code; playerRoomCodeSpan.innerText = code; playerNameSpan.innerText = name; playerWaitingDiv.classList.remove('hidden'); playerGameArea.classList.add('hidden'); }
+            else { alert(res.message || "فشل الانضمام"); location.reload(); }
+        });
+    }
+    function updatePlayersList(players) { if(!players || players.length===0) { hostPlayersListDiv.innerHTML = "🚫 لا يوجد لاعبون بعد"; startGameBtn.disabled = true; hostPlayersCountSpan.innerText = '0'; return; } let html = '👥 اللاعبون:<br>'; players.forEach(p => { html += `<span class="players-badge">🎮 ${p.name}</span> `; }); hostPlayersListDiv.innerHTML = html; hostPlayersCountSpan.innerText = players.length; startGameBtn.disabled = (players.length === 0); }
+    function renderLeaderboard(leaderboard, containerId='host') { let html = '<tr><th>#</th><th>اللاعب</th><th>⭐ النقاط</th></tr>'; leaderboard.forEach((p, idx) => { html += `<tr><td>${idx+1}</td><td>${p.name}</td><td>${p.score}</td></tr>`; }); html += '</table>'; if(containerId === 'host') leaderboardTableDiv.innerHTML = html; else playerLeaderboardTable.innerHTML = html; }
+    function showQuestionResult(data) { hostResultArea.classList.remove('hidden'); let statsHtml = `✅ الإجابة الصحيحة: ${data.correctAnswerText}<br> 🎯 عدد من أجابوا إجابة صحيحة: ${data.correctPlayersCount}<br>`; if(data.pointsAwarded && data.pointsAwarded.length) { statsHtml += "<br>🏅 النقاط الممنوحة حسب السرعة:<ul>"; data.pointsAwarded.forEach(p => { statsHtml += `<li>${p.name}: +${p.pointsGained} نقطة</li>`; }); statsHtml += "</ul>"; } correctStatsDiv.innerHTML = statsHtml; renderLeaderboard(data.leaderboard, 'host'); }
+    startGameBtn.onclick = () => { if(startGameBtn.disabled) return; let qCount = parseInt(questionCountInput.value); if(isNaN(qCount)) qCount=10; else qCount = Math.min(50, Math.max(10, qCount)); socket.emit('startGame', { roomCode: roomCodeLocal, questionCount: qCount }); startGameBtn.disabled = true; startGameBtn.innerText = '⌛ جارٍ بدء اللعبة...'; };
+    nextQuestionBtn.onclick = () => { socket.emit('nextQuestion', { roomCode: roomCodeLocal }); hostResultArea.classList.add('hidden'); hostGameArea.classList.remove('hidden'); hostOptionsDiv.innerHTML = ''; hostTimerSpan.innerText = '⏱ يتحضر...'; };
+    function displayHostQuestion(questionData) { hostGameArea.classList.remove('hidden'); hostResultArea.classList.add('hidden'); hostQuestionText.innerText = questionData.text; hostOptionsDiv.innerHTML = ''; questionData.options.forEach((opt) => { const btn = document.createElement('div'); btn.classList.add('option-btn'); btn.innerText = opt; hostOptionsDiv.appendChild(btn); }); hostTimerSpan.innerText = `⏱ ${questionData.duration} ثانية`; }
+    function updateHostTimer(seconds) { hostTimerSpan.innerText = `⏱ ${seconds} ثانية`; }
+
+    socket.on('roomCreated', (data) => { if(currentRole==='host' && data.roomCode) { roomCodeLocal = data.roomCode; hostRoomCodeSpan.innerText = data.roomCode; } });
+    socket.on('updatePlayers', (data) => { if(currentRole === 'host' && data.roomCode === roomCodeLocal) updatePlayersList(data.players); });
+    socket.on('gameStarted', (data) => { if(currentRole === 'host' && data.roomCode === roomCodeLocal) { hostGameArea.classList.remove('hidden'); startGameBtn.disabled = true; startGameBtn.innerText = '🎮 اللعبة بدأت'; hostResultArea.classList.add('hidden'); } else if(currentRole === 'player' && data.roomCode === roomCodeLocal) { playerWaitingDiv.classList.add('hidden'); playerGameArea.classList.remove('hidden'); playerEndMessage.classList.add('hidden'); playerFeedback.innerText = ''; hasAnswered = false; } });
+    socket.on('newQuestion', (data) => { if(data.roomCode !== roomCodeLocal) return; if(currentRole === 'host') { displayHostQuestion(data.question); } else if(currentRole === 'player') { hasAnswered = false; playerFeedback.innerText = ''; playerQuestionText.innerText = data.question.text; playerOptionsDiv.innerHTML = ''; data.question.options.forEach((opt, idx) => { const optDiv = document.createElement('div'); optDiv.classList.add('option-btn'); optDiv.innerText = opt; optDiv.setAttribute('data-opt-idx', idx); optDiv.onclick = () => { if(hasAnswered) { playerFeedback.innerText = '⚠️ سبق أن أجبّت!'; return; } if(!isGameActive) return; socket.emit('submitAnswer', { roomCode: roomCodeLocal, questionIndex: data.questionIndex, answerIndex: idx }); hasAnswered = true; playerFeedback.innerText = '✅ تم استلام إجابتك! انتظر النتيجة...'; document.querySelectorAll('#playerOptions .option-btn').forEach(btn => { btn.style.pointerEvents = 'none'; btn.classList.add('disabled-opt'); }); }; playerOptionsDiv.appendChild(optDiv); }); playerTimerSpan.innerText = `⏱ ${data.duration}`; isGameActive = true; } });
+    socket.on('timerTick', (data) => { if(data.roomCode !== roomCodeLocal) return; if(currentRole === 'host') updateHostTimer(data.seconds); else if(currentRole === 'player') playerTimerSpan.innerText = `⏱ ${data.seconds}`; });
+    socket.on('questionResult', (data) => { if(data.roomCode !== roomCodeLocal) return; if(currentRole === 'host') { showQuestionResult(data); hostGameArea.classList.add('hidden'); hostResultArea.classList.remove('hidden'); } else if(currentRole === 'player') { let playerEntry = data.playersResults?.find(p => p.playerId === socket.id); if(playerEntry) { if(playerEntry.wasCorrect) playerFeedback.innerHTML = `🎉 إجابتك صحيحة! +${playerEntry.pointsGained} نقطة 🎉`; else playerFeedback.innerHTML = `❌ إجابتك خاطئة! الإجابة الصحيحة: ${data.correctAnswerText}`; } else { playerFeedback.innerHTML = `📢 انتهى الوقت! الإجابة الصحيحة: ${data.correctAnswerText}`; } if(data.leaderboard) renderLeaderboard(data.leaderboard, 'player'); } });
+    socket.on('updateLeaderboard', (data) => { if(data.roomCode !== roomCodeLocal) return; if(currentRole === 'host') renderLeaderboard(data.leaderboard, 'host'); else if(currentRole === 'player') renderLeaderboard(data.leaderboard, 'player'); });
+    socket.on('gameOver', (data) => { if(data.roomCode !== roomCodeLocal) return; if(currentRole === 'host') { hostGameArea.classList.add('hidden'); hostResultArea.classList.add('hidden'); hostEndGameDiv.classList.remove('hidden'); let finalHtml = '<table><tr><th>المركز</th><th>اللاعب</th><th>النقاط</th></tr>'; data.finalLeaderboard.forEach((p, idx) => { finalHtml += `<tr><td>${idx+1}</td><td>${p.name}</td><td>${p.score}</td></tr>`; }); finalHtml += '</table>'; hostEndGameDiv.innerHTML = `<h2>🏆 نهاية اللعبة 🏆</h2>${finalHtml}`; } else if(currentRole === 'player') { playerGameArea.classList.add('hidden'); playerEndMessage.classList.remove('hidden'); let finalHtml = '<table><tr><th>المركز</th><th>اللاعب</th><th>النقاط</th></tr>'; data.finalLeaderboard.forEach((p, idx) => { finalHtml += `<tr><td>${idx+1}</td><td>${p.name}</td><td>${p.score}</td></tr>`; }); finalHtml += '</table>'; playerFinalRank.innerHTML = finalHtml; } isGameActive = false; });
+    socket.on('errorMessage', (msg) => { alert(msg); if(msg.includes('بدأت') && currentRole==='player') location.reload(); });
+    socket.on('hostDisconnected', () => { if(currentRole === 'player') { alert('المضيف غادر الغرفة، سيتم إعادة التوجيه'); location.reload(); } });
+    window.onbeforeunload = () => { if(roomCodeLocal && currentRole) { socket.emit('leaveRoom', { roomCode: roomCodeLocal }); } };
+</script>
+</body>
+</html>
