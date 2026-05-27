@@ -3,9 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>سباق المعرفة - لعبة الأسئلة التفاعلية</title>
+    <title>سباق المعرفة - لعبة الأسئلة الجماعية</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', 'Tahoma', sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body {
             background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
             min-height: 100vh;
@@ -26,126 +29,232 @@
         }
         .game-title {
             text-align: center;
-            font-size: 2.8rem;
+            font-size: 2.5rem;
             font-weight: bold;
             background: linear-gradient(45deg, #FFD700, #FF8C00, #FF1493);
             -webkit-background-clip: text;
             background-clip: text;
             color: transparent;
-            text-shadow: 0 0 10px rgba(0,0,0,0.3);
             margin-bottom: 20px;
-            letter-spacing: 2px;
         }
         .role-selector { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px; }
         .role-card {
             background: rgba(255,255,255,0.15);
             backdrop-filter: blur(8px);
             border-radius: 48px;
-            padding: 30px 40px;
+            padding: 25px 35px;
             cursor: pointer;
             text-align: center;
-            transition: all 0.3s ease;
+            transition: all 0.3s;
             flex: 1;
-            min-width: 220px;
+            min-width: 200px;
             border: 1px solid rgba(255,215,0,0.5);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
         }
-        .role-card:hover { transform: translateY(-12px) scale(1.02); background: rgba(255,215,0,0.2); border-color: #FFD700; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
-        .role-card h2 { color: #FFD966; margin-bottom: 10px; font-size: 2rem; }
+        .role-card:hover { transform: translateY(-8px); background: rgba(255,215,0,0.2); }
+        .role-card h2 { color: #FFD966; }
         .role-card p { color: #f0f0f0; }
-        .panel { background: rgba(30,30,50,0.85); backdrop-filter: blur(12px); border-radius: 48px; padding: 20px 28px; margin-top: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,215,0,0.4); }
+        .panel {
+            background: rgba(30,30,50,0.85);
+            backdrop-filter: blur(12px);
+            border-radius: 48px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid rgba(255,215,0,0.4);
+        }
         .hidden { display: none; }
-        .room-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 15px; background: linear-gradient(135deg, #1e2a3a, #0f1722); color: #FFE6A7; padding: 15px 25px; border-radius: 60px; margin-bottom: 25px; border: 1px solid #FFB347; }
-        .room-code { background: #f39c12; padding: 8px 20px; border-radius: 50px; font-weight: bold; font-size: 2rem; letter-spacing: 6px; color: #2c2c2c; box-shadow: 0 0 10px #f39c12; }
-        .players-list { background: rgba(0,0,0,0.4); border-radius: 32px; padding: 15px; margin: 15px 0; color: #FFE0A3; }
-        .players-badge { display: inline-block; background: #ff7e5e; color: white; border-radius: 40px; padding: 6px 18px; margin: 5px; font-weight: bold; box-shadow: 0 2px 6px black; }
-        button { background: linear-gradient(95deg, #ff6b6b, #feca57); border: none; color: #1e1e2a; padding: 12px 28px; border-radius: 60px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: 0.2s; margin: 8px; box-shadow: 0 5px 10px rgba(0,0,0,0.3); }
-        button:hover { transform: scale(1.03); filter: brightness(1.05); box-shadow: 0 8px 18px black; }
-        .question-area { background: rgba(0,0,0,0.6); border-radius: 48px; padding: 25px; margin: 20px 0; border: 1px solid #ffcc66; }
-        .timer { font-size: 3rem; font-weight: bold; text-align: center; color: #ffaa33; text-shadow: 0 0 8px red; }
-        .options-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 18px; margin: 25px 0; }
-        .option-btn { background: #2c3e66; color: #f9f3d9; padding: 16px; border-radius: 60px; text-align: center; cursor: pointer; transition: 0.1s linear; font-weight: bold; border: 1px solid #ffaa44; }
-        .option-btn:hover:not(.disabled-opt) { background: #f39c12; color: #1e1e2a; transform: scale(1.02); border-color: white; }
-        .disabled-opt { background: #555; cursor: not-allowed; opacity: 0.5; }
-        .leaderboard { background: rgba(0,0,0,0.6); border-radius: 32px; padding: 20px; margin-top: 20px; color: #ffe2b5; }
+        .room-header {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            background: linear-gradient(135deg, #1e2a3a, #0f1722);
+            border-radius: 60px;
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            color: #FFE6A7;
+        }
+        .room-code {
+            background: #f39c12;
+            padding: 5px 18px;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.6rem;
+            letter-spacing: 4px;
+            color: #2c2c2c;
+        }
+        .players-list {
+            background: rgba(0,0,0,0.4);
+            border-radius: 32px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .players-badge {
+            display: inline-block;
+            background: #ff7e5e;
+            padding: 5px 15px;
+            border-radius: 40px;
+            margin: 5px;
+            color: white;
+        }
+        button {
+            background: linear-gradient(95deg, #ff6b6b, #feca57);
+            border: none;
+            padding: 10px 24px;
+            border-radius: 60px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 8px;
+            transition: 0.2s;
+        }
+        button:hover { transform: scale(1.02); filter: brightness(1.05); }
+        .question-area {
+            background: rgba(0,0,0,0.6);
+            border-radius: 48px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .timer { font-size: 2.5rem; text-align: center; color: #ffaa33; }
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px,1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .option-btn {
+            background: #2c3e66;
+            color: white;
+            padding: 14px;
+            border-radius: 60px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .option-btn:hover { background: #f39c12; color: #1e1e2a; }
+        .disabled-opt { background: #555; cursor: not-allowed; opacity: 0.6; pointer-events: none; }
+        .leaderboard {
+            background: rgba(0,0,0,0.6);
+            border-radius: 28px;
+            padding: 15px;
+            margin-top: 20px;
+            color: #ffe2b5;
+        }
         .leaderboard table { width: 100%; border-collapse: collapse; }
-        .leaderboard th, .leaderboard td { padding: 10px; border-bottom: 1px solid #ffcc66; text-align: right; }
-        .correct-stats { background: #1e3a2f; border-radius: 28px; padding: 15px; margin: 15px 0; color: #b9f6ca; border-right: 5px solid gold; }
-        input { padding: 12px 20px; border-radius: 60px; border: 1px solid #ffbf69; background: #fff4e6; width: 240px; margin: 8px; font-size: 1rem; text-align: center; font-weight: bold; }
-        .flex-row { display: flex; flex-wrap: wrap; align-items: center; gap: 15px; justify-content: center; }
-        .join-form { background: rgba(0,0,0,0.6); border-radius: 48px; padding: 30px; text-align: center; border: 2px solid #ffcc44; }
-        .join-form input { width: 260px; font-size: 1.2rem; background: #fff5e6; }
+        .leaderboard th, .leaderboard td { padding: 8px; border-bottom: 1px solid #ffcc66; text-align: right; }
+        .correct-stats { background: #1e3a2f; border-radius: 28px; padding: 12px; margin: 10px 0; }
+        input {
+            padding: 10px 18px;
+            border-radius: 60px;
+            border: none;
+            width: 220px;
+            margin: 5px;
+            text-align: center;
+            font-size: 1rem;
+        }
+        .join-form {
+            background: rgba(0,0,0,0.6);
+            border-radius: 48px;
+            padding: 25px;
+            text-align: center;
+        }
+        .error-msg { color: #ff8888; margin-top: 10px; }
         .back-btn { background: #6c757d; margin-top: 20px; }
-        .error-msg { color: #ff8888; margin-top: 12px; font-weight: bold; text-shadow: 0 0 3px black; }
-        .host-code-input { background: #fff0c0; font-size: 1.8rem; letter-spacing: 4px; text-align: center; width: 220px; }
     </style>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
 <div class="game-container">
     <div class="game-title">🏆 سباق المعرفة – Quiz Race 🏆</div>
 
     <div id="roleScreen" class="role-selector">
-        <div class="role-card" onclick="selectRole('host')"><h2>🎤 أنشئ غرفة</h2><p>اختر رمز الغرفة وابدأ اللعبة</p></div>
+        <div class="role-card" onclick="selectRole('host')"><h2>🎤 أنشئ غرفة</h2><p>كن المضيف وابدأ اللعبة</p></div>
         <div class="role-card" onclick="selectRole('player')"><h2>🎮 انضم كلاعب</h2><p>أدخل رمز الغرفة واسمك</p></div>
     </div>
 
-    <!-- لوحة المضيف -->
     <div id="hostPanel" class="panel hidden">
         <div class="room-header"><div>🔐 رمز الغرفة: <span id="hostRoomCode" class="room-code">------</span></div><div>👥 <span id="hostPlayersCount">0</span> لاعب</div></div>
         <div id="hostPlayersList" class="players-list">⏳ في انتظار انضمام اللاعبين...</div>
-        <div class="flex-row" style="justify-content: space-between;">
-            <div>📚 عدد الأسئلة (10-50): <input type="number" id="questionCountInput" min="10" max="50" value="10" style="width: 90px;"></div>
-            <button id="startGameBtn" disabled style="background:#1f8a4c;">▶ ابدأ اللعبة</button>
-        </div>
+        <div><label>📚 عدد الأسئلة (10-50):</label> <input type="number" id="questionCountInput" min="10" max="50" value="10" style="width:90px;"> <button id="startGameBtn" disabled>▶ ابدأ اللعبة</button></div>
         <div id="hostGameArea" class="hidden">
-            <div class="question-area"><h2 id="hostQuestionText">السؤال</h2><div id="hostOptions" class="options-grid"></div><div class="timer" id="hostTimer">⏱ 10 ثانية</div></div>
-            <div id="hostResultArea" class="hidden"><div class="correct-stats" id="correctStats"></div><div id="hostLeaderboard" class="leaderboard"><h3>🏆 قائمة المتصدرين</h3><div id="leaderboardTable"></div></div><button id="nextQuestionBtn" style="background:#2c5f8a;">➡ السؤال التالي</button></div>
+            <div class="question-area"><h2 id="hostQuestionText">السؤال</h2><div id="hostOptions" class="options-grid"></div><div class="timer" id="hostTimer">⏱ 10</div></div>
+            <div id="hostResultArea" class="hidden"><div class="correct-stats" id="correctStats"></div><div id="hostLeaderboard" class="leaderboard"><h3>🏆 المتصدرون</h3><div id="leaderboardTable"></div></div><button id="nextQuestionBtn">➡ السؤال التالي</button></div>
         </div>
-        <div id="hostEndGame" class="hidden leaderboard"><h2>🎉 نهاية اللعبة 🎉</h2><div id="finalRanking"></div></div>
-        <button class="back-btn" onclick="resetToRoleSelection()">↺ العودة إلى القائمة الرئيسية</button>
+        <div id="hostEndGame" class="hidden leaderboard"><h2>🎉 نهاية اللعبة</h2><div id="finalRanking"></div></div>
+        <button class="back-btn" onclick="resetToRoleSelection()">↺ العودة</button>
     </div>
 
-    <!-- لوحة اللاعب -->
     <div id="playerPanel" class="panel hidden">
         <div class="room-header"><div>🎮 مرحباً: <span id="playerNameSpan">---</span></div><div>🏷 الغرفة: <span id="playerRoomCodeSpan">------</span></div></div>
         <div id="joinFormContainer" class="join-form">
             <h3>🔑 أدخل رمز الغرفة واسمك</h3>
-            <input type="text" id="joinRoomCode" maxlength="6" placeholder="رمز الغرفة (6 أرقام)" style="text-align: center; font-size: 1.8rem; letter-spacing: 4px;">
+            <input type="text" id="joinRoomCode" maxlength="6" placeholder="رمز (6 أرقام)" style="font-size:1.5rem;letter-spacing:4px;text-align:center;">
             <input type="text" id="joinPlayerName" placeholder="اسمك">
             <button id="joinRoomBtn">🚪 انضم إلى الغرفة</button>
             <div id="joinError" class="error-msg"></div>
         </div>
-        <div id="playerWaiting" class="players-list hidden">⏳ انتظار بدء المضيف للعبة...</div>
+        <div id="playerWaiting" class="players-list hidden">⏳ انتظر بدء المضيف للعبة...</div>
         <div id="playerGameArea" class="hidden">
             <div class="question-area"><h3 id="playerQuestionText"></h3><div id="playerOptions" class="options-grid"></div><div class="timer" id="playerTimer">⏱ 10</div><div id="playerFeedback" class="status"></div></div>
             <div id="playerLeaderboardPanel" class="leaderboard"><h3>📊 لوحة المتصدرين</h3><div id="playerLeaderboardTable"></div></div>
         </div>
         <div id="playerEndMessage" class="hidden correct-stats"><h3>انتهت اللعبة! شكراً للمشاركة</h3><div id="playerFinalRank"></div></div>
-        <button class="back-btn" onclick="resetToRoleSelection()">↺ العودة إلى القائمة الرئيسية</button>
+        <button class="back-btn" onclick="resetToRoleSelection()">↺ العودة</button>
     </div>
 </div>
 
 <script>
-    const socket = io();
-    let currentRole = null, roomCodeLocal = null, playerNameLocal = null, isGameActive = false, hasAnswered = false;
+    // 🔥 أدخل إعدادات Firebase الخاصة بك هنا 🔥
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_AUTH_DOMAIN",
+        databaseURL: "YOUR_DATABASE_URL",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_STORAGE_BUCKET",
+        messagingSenderId: "YOUR_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-    // عناصر
+    // بنك الأسئلة (اختصاراً 25 سؤال، يمكن توسيعه)
+    const QUESTION_BANK = [
+        { text: "ما هي عاصمة فرنسا؟", options: ["برلين", "مدريد", "باريس", "لشبونة"], correct: 2 },
+        { text: "من كتب 'الأمير الصغير'؟", options: ["جورج أورويل", "أنطوان دو سانت إكزوبيري", "تشارلز ديكنز", "مارك توين"], correct: 1 },
+        { text: "كم عدد الكواكب في المجموعة الشمسية؟", options: ["7", "8", "9", "10"], correct: 1 },
+        { text: "أكبر محيط في العالم؟", options: ["الأطلسي", "الهندي", "المتجمد الشمالي", "الهادئ"], correct: 3 },
+        { text: "مؤسس مايكروسوفت؟", options: ["ستيف جوبز", "بيل غيتس", "مارك زوكربيرغ", "لاري بيج"], correct: 1 },
+        { text: "عام انتهاء الحرب العالمية الثانية؟", options: ["1943", "1944", "1945", "1946"], correct: 2 },
+        { text: "عملة اليابان؟", options: ["اليوان", "الوون", "الين", "الدولار"], correct: 2 },
+        { text: "رسام الموناليزا؟", options: ["فان جوخ", "بيكاسو", "دافنشي", "رامبرانت"], correct: 2 },
+        { text: "أسرع حيوان بري؟", options: ["الأسد", "النمر", "الفهد", "الغزال"], correct: 2 },
+        { text: "أطول نهر في العالم؟", options: ["الأمازون", "النيل", "اليانغتسي", "الميسيسيبي"], correct: 1 },
+    ];
+    // تكرار لتوسيع البنك
+    for (let i=0; i<40; i++) QUESTION_BANK.push({ text: `سؤال إضافي ${i+11}`, options: ["أ","ب","ج","د"], correct: i%4 });
+
+    let currentRole = null;
+    let roomCode = null;
+    let playerId = null;
+    let playerName = null;
+    let isGameActive = false;
+    let hasAnswered = false;
+    let currentQuestionRef = null;
+    let timerInterval = null;
+
+    // عناصر DOM
     const roleScreen = document.getElementById('roleScreen');
     const hostPanel = document.getElementById('hostPanel');
     const playerPanel = document.getElementById('playerPanel');
-    const joinFormContainer = document.getElementById('joinFormContainer');
+    const joinForm = document.getElementById('joinFormContainer');
+    const joinRoomCode = document.getElementById('joinRoomCode');
+    const joinPlayerName = document.getElementById('joinPlayerName');
+    const joinBtn = document.getElementById('joinRoomBtn');
+    const joinError = document.getElementById('joinError');
     const playerWaitingDiv = document.getElementById('playerWaiting');
     const playerGameArea = document.getElementById('playerGameArea');
     const playerNameSpan = document.getElementById('playerNameSpan');
     const playerRoomCodeSpan = document.getElementById('playerRoomCodeSpan');
-    const joinRoomCodeInput = document.getElementById('joinRoomCode');
-    const joinPlayerNameInput = document.getElementById('joinPlayerName');
-    const joinRoomBtn = document.getElementById('joinRoomBtn');
-    const joinErrorDiv = document.getElementById('joinError');
-
     const hostRoomCodeSpan = document.getElementById('hostRoomCode');
     const hostPlayersListDiv = document.getElementById('hostPlayersList');
+    const hostPlayersCountSpan = document.getElementById('hostPlayersCount');
     const startGameBtn = document.getElementById('startGameBtn');
     const hostGameArea = document.getElementById('hostGameArea');
     const hostResultArea = document.getElementById('hostResultArea');
@@ -156,7 +265,6 @@
     const leaderboardTableDiv = document.getElementById('leaderboardTable');
     const nextQuestionBtn = document.getElementById('nextQuestionBtn');
     const hostEndGameDiv = document.getElementById('hostEndGame');
-    const hostPlayersCountSpan = document.getElementById('hostPlayersCount');
     const questionCountInput = document.getElementById('questionCountInput');
     const playerQuestionText = document.getElementById('playerQuestionText');
     const playerOptionsDiv = document.getElementById('playerOptions');
@@ -166,111 +274,360 @@
     const playerEndMessage = document.getElementById('playerEndMessage');
     const playerFinalRank = document.getElementById('playerFinalRank');
 
+    // دوال عامة
     window.selectRole = function(role) {
         currentRole = role;
         roleScreen.classList.add('hidden');
         if(role === 'host') {
             hostPanel.classList.remove('hidden');
-            askHostForRoomCode();
+            createRoom();
         } else {
             playerPanel.classList.remove('hidden');
-            joinFormContainer.classList.remove('hidden');
+            joinForm.classList.remove('hidden');
             playerWaitingDiv.classList.add('hidden');
             playerGameArea.classList.add('hidden');
             playerEndMessage.classList.add('hidden');
-            joinErrorDiv.innerText = '';
-            joinRoomCodeInput.value = '';
-            joinPlayerNameInput.value = '';
         }
     };
 
-    function askHostForRoomCode() {
-        let code = prompt("أدخل رمز الغرفة المكون من 6 أرقام (سيستخدمه اللاعبون للدخول):");
-        if(!code || !/^\d{6}$/.test(code)) {
-            alert("الرمز يجب أن يكون 6 أرقام فقط. سيتم إلغاء الإنشاء.");
-            resetToRoleSelection();
-            return;
-        }
-        socket.emit('createRoom', { roomCode: code }, (response) => {
-            if(response.success) {
-                roomCodeLocal = response.roomCode;
-                hostRoomCodeSpan.innerText = roomCodeLocal;
-            } else {
-                alert(response.message || "فشل إنشاء الغرفة، جرب رمزاً آخر.");
-                resetToRoleSelection();
-            }
-        });
-    }
-
     window.resetToRoleSelection = function() {
-        if(roomCodeLocal && currentRole) {
-            socket.emit('leaveRoom', { roomCode: roomCodeLocal });
+        if(roomCode) {
+            db.ref(`rooms/${roomCode}`).remove();
         }
-        currentRole = null;
-        roomCodeLocal = null;
+        if(timerInterval) clearInterval(timerInterval);
+        currentRole = null; roomCode = null;
         hostPanel.classList.add('hidden');
         playerPanel.classList.add('hidden');
         roleScreen.classList.remove('hidden');
-        isGameActive = false;
-        hasAnswered = false;
     };
 
-    function joinRoom() {
-        const code = joinRoomCodeInput.value.trim();
-        const name = joinPlayerNameInput.value.trim();
-        if(!code || code.length !== 6) { joinErrorDiv.innerText = '⚠️ الرمز 6 أرقام'; return; }
-        if(!name) { joinErrorDiv.innerText = '⚠️ أدخل اسمك'; return; }
-        playerNameLocal = name;
-        socket.emit('joinRoom', { roomCode: code, playerName: name }, (res) => {
-            if(res.success) {
-                roomCodeLocal = code;
-                playerRoomCodeSpan.innerText = code;
-                playerNameSpan.innerText = name;
-                joinFormContainer.classList.add('hidden');
-                playerWaitingDiv.classList.remove('hidden');
-                playerGameArea.classList.add('hidden');
-                joinErrorDiv.innerText = '';
-            } else {
-                joinErrorDiv.innerText = res.message || 'فشل الانضمام';
+    // إنشاء غرفة (المضيف)
+    function createRoom() {
+        let code = prompt("أدخل رمز الغرفة (6 أرقام):");
+        if(!code || !/^\d{6}$/.test(code)) { alert("رمز غير صالح"); resetToRoleSelection(); return; }
+        roomCode = code;
+        const roomRef = db.ref(`rooms/${roomCode}`);
+        roomRef.once('value', (snap) => {
+            if(snap.exists()) {
+                alert("الرمز مستخدم بالفعل، اختر رمزاً آخر");
+                resetToRoleSelection();
+                return;
+            }
+            roomRef.set({
+                hostId: "host_" + Date.now(),
+                gameActive: false,
+                players: {},
+                currentQuestion: null,
+                questionStartTime: null,
+                answers: {},
+                scores: {},
+                leaderboard: [],
+                numberOfQuestions: 10,
+                questionsList: []
+            });
+            hostRoomCodeSpan.innerText = roomCode;
+            listenForPlayers();
+            listenForGameEvents();
+        });
+    }
+
+    function listenForPlayers() {
+        db.ref(`rooms/${roomCode}/players`).on('value', (snap) => {
+            const players = snap.val() || {};
+            const playerArray = Object.values(players);
+            hostPlayersListDiv.innerHTML = playerArray.map(p => `<span class="players-badge">🎮 ${p.name}</span>`).join('') || "🚫 لا لاعبين";
+            hostPlayersCountSpan.innerText = playerArray.length;
+            startGameBtn.disabled = (playerArray.length === 0);
+        });
+    }
+
+    function listenForGameEvents() {
+        const roomRef = db.ref(`rooms/${roomCode}`);
+        roomRef.on('value', (snap) => {
+            const data = snap.val();
+            if(!data) return;
+            if(data.gameActive === true && !hostGameArea.classList.contains('hidden') === false) {
+                hostGameArea.classList.remove('hidden');
+                startGameBtn.disabled = true;
+                startGameBtn.innerText = "🎮 جارٍ اللعب";
+            }
+            if(data.currentQuestion) {
+                displayHostQuestion(data.currentQuestion);
+            }
+            if(data.questionResult) {
+                showQuestionResult(data.questionResult);
+                hostGameArea.classList.add('hidden');
+                hostResultArea.classList.remove('hidden');
+            }
+            if(data.gameOver) {
+                hostGameArea.classList.add('hidden');
+                hostResultArea.classList.add('hidden');
+                hostEndGameDiv.classList.remove('hidden');
+                let finalHtml = '表朝<th>#</th><th>اللاعب</th><th>النقاط</th></tr>';
+                (data.leaderboard || []).forEach((p,idx) => {
+                    finalHtml += `<tr><td>${idx+1}</td><td>${p.name}</td><td>${p.score}</td></tr>`;
+                });
+                finalHtml += '<table>';
+                hostEndGameDiv.innerHTML = `<h2>🏆 النهاية</h2>${finalHtml}`;
             }
         });
     }
-    joinRoomBtn.onclick = joinRoom;
-    joinRoomCodeInput.addEventListener('keypress', e => { if(e.key === 'Enter') joinRoom(); });
-    joinPlayerNameInput.addEventListener('keypress', e => { if(e.key === 'Enter') joinRoom(); });
 
-    // باقي الوظائف (تحديث القوائم، عرض النتائج) بنفس الكود السابق مع تحسين الألوان
-    function updatePlayersList(players) {
-        if(!players || players.length===0) { hostPlayersListDiv.innerHTML = "🚫 لا يوجد لاعبون بعد"; startGameBtn.disabled = true; hostPlayersCountSpan.innerText = '0'; return; }
-        let html = '👥 اللاعبون:<br>'; players.forEach(p => { html += `<span class="players-badge">🎮 ${p.name}</span> `; });
-        hostPlayersListDiv.innerHTML = html; hostPlayersCountSpan.innerText = players.length; startGameBtn.disabled = (players.length === 0);
+    function displayHostQuestion(qData) {
+        hostQuestionText.innerText = qData.text;
+        hostOptionsDiv.innerHTML = '';
+        qData.options.forEach(opt => {
+            const div = document.createElement('div');
+            div.className = 'option-btn';
+            div.innerText = opt;
+            hostOptionsDiv.appendChild(div);
+        });
+        hostTimerSpan.innerText = `⏱ ${qData.duration}`;
+        if(timerInterval) clearInterval(timerInterval);
+        let seconds = qData.duration;
+        timerInterval = setInterval(() => {
+            seconds--;
+            hostTimerSpan.innerText = `⏱ ${seconds}`;
+            if(seconds <= 0) clearInterval(timerInterval);
+        }, 1000);
     }
-    function renderLeaderboard(leaderboard, containerId='host') {
-        let html = '表朝<th>#</th><th>اللاعب</th><th>⭐ النقاط</th></tr>'; leaderboard.forEach((p, idx) => { html += `<tr><td>${idx+1}</td><td>${p.name}</td><td>${p.score}</td></tr>`; }); html += '</table>';
-        if(containerId === 'host') leaderboardTableDiv.innerHTML = html; else playerLeaderboardTable.innerHTML = html;
-    }
-    function showQuestionResult(data) {
-        hostResultArea.classList.remove('hidden');
-        let statsHtml = `✅ الإجابة الصحيحة: ${data.correctAnswerText}<br> 🎯 عدد من أجابوا صحيحاً: ${data.correctPlayersCount}<br>`;
-        if(data.pointsAwarded && data.pointsAwarded.length) { statsHtml += "<br>🏅 النقاط الممنوحة حسب السرعة:<ul>"; data.pointsAwarded.forEach(p => { statsHtml += `<li>${p.name}: +${p.pointsGained} نقطة</li>`; }); statsHtml += "</ul>"; }
-        correctStatsDiv.innerHTML = statsHtml; renderLeaderboard(data.leaderboard, 'host');
-    }
-    startGameBtn.onclick = () => { if(startGameBtn.disabled) return; let qCount = parseInt(questionCountInput.value); if(isNaN(qCount)) qCount=10; else qCount = Math.min(50, Math.max(10, qCount)); socket.emit('startGame', { roomCode: roomCodeLocal, questionCount: qCount }); startGameBtn.disabled = true; startGameBtn.innerText = '⌛ جارٍ بدء اللعبة...'; };
-    nextQuestionBtn.onclick = () => { socket.emit('nextQuestion', { roomCode: roomCodeLocal }); hostResultArea.classList.add('hidden'); hostGameArea.classList.remove('hidden'); hostOptionsDiv.innerHTML = ''; hostTimerSpan.innerText = '⏱ يتحضر...'; };
-    function displayHostQuestion(questionData) { hostGameArea.classList.remove('hidden'); hostResultArea.classList.add('hidden'); hostQuestionText.innerText = questionData.text; hostOptionsDiv.innerHTML = ''; questionData.options.forEach((opt) => { const btn = document.createElement('div'); btn.classList.add('option-btn'); btn.innerText = opt; hostOptionsDiv.appendChild(btn); }); hostTimerSpan.innerText = `⏱ ${questionData.duration} ثانية`; }
-    function updateHostTimer(seconds) { hostTimerSpan.innerText = `⏱ ${seconds} ثانية`; }
 
-    socket.on('roomCreated', (data) => { if(currentRole==='host' && data.roomCode) { roomCodeLocal = data.roomCode; hostRoomCodeSpan.innerText = data.roomCode; } });
-    socket.on('updatePlayers', (data) => { if(currentRole === 'host' && data.roomCode === roomCodeLocal) updatePlayersList(data.players); });
-    socket.on('gameStarted', (data) => { if(currentRole === 'host' && data.roomCode === roomCodeLocal) { hostGameArea.classList.remove('hidden'); startGameBtn.disabled = true; startGameBtn.innerText = '🎮 اللعبة بدأت'; hostResultArea.classList.add('hidden'); } else if(currentRole === 'player' && data.roomCode === roomCodeLocal) { playerWaitingDiv.classList.add('hidden'); playerGameArea.classList.remove('hidden'); playerEndMessage.classList.add('hidden'); playerFeedback.innerText = ''; hasAnswered = false; isGameActive = true; } });
-    socket.on('newQuestion', (data) => { if(data.roomCode !== roomCodeLocal) return; if(currentRole === 'host') { displayHostQuestion(data.question); } else if(currentRole === 'player') { hasAnswered = false; playerFeedback.innerText = ''; playerQuestionText.innerText = data.question.text; playerOptionsDiv.innerHTML = ''; data.question.options.forEach((opt, idx) => { const optDiv = document.createElement('div'); optDiv.classList.add('option-btn'); optDiv.innerText = opt; optDiv.onclick = () => { if(hasAnswered) { playerFeedback.innerText = '⚠️ سبق أن أجبّت!'; return; } if(!isGameActive) return; socket.emit('submitAnswer', { roomCode: roomCodeLocal, questionIndex: data.questionIndex, answerIndex: idx }); hasAnswered = true; playerFeedback.innerText = '✅ تم استلام إجابتك! انتظر النتيجة...'; document.querySelectorAll('#playerOptions .option-btn').forEach(btn => { btn.style.pointerEvents = 'none'; btn.classList.add('disabled-opt'); }); }; playerOptionsDiv.appendChild(optDiv); }); playerTimerSpan.innerText = `⏱ ${data.duration}`; } });
-    socket.on('timerTick', (data) => { if(data.roomCode !== roomCodeLocal) return; if(currentRole === 'host') updateHostTimer(data.seconds); else if(currentRole === 'player') playerTimerSpan.innerText = `⏱ ${data.seconds}`; });
-    socket.on('questionResult', (data) => { if(data.roomCode !== roomCodeLocal) return; if(currentRole === 'host') { showQuestionResult(data); hostGameArea.classList.add('hidden'); hostResultArea.classList.remove('hidden'); } else if(currentRole === 'player') { let playerEntry = data.playersResults?.find(p => p.playerId === socket.id); if(playerEntry) { if(playerEntry.wasCorrect) playerFeedback.innerHTML = `🎉 إجابتك صحيحة! +${playerEntry.pointsGained} نقطة 🎉`; else playerFeedback.innerHTML = `❌ إجابتك خاطئة! الإجابة الصحيحة: ${data.correctAnswerText}`; } else { playerFeedback.innerHTML = `📢 انتهى الوقت! الإجابة الصحيحة: ${data.correctAnswerText}`; } if(data.leaderboard) renderLeaderboard(data.leaderboard, 'player'); } });
-    socket.on('updateLeaderboard', (data) => { if(data.roomCode !== roomCodeLocal) return; if(currentRole === 'host') renderLeaderboard(data.leaderboard, 'host'); else if(currentRole === 'player') renderLeaderboard(data.leaderboard, 'player'); });
-    socket.on('gameOver', (data) => { if(data.roomCode !== roomCodeLocal) return; if(currentRole === 'host') { hostGameArea.classList.add('hidden'); hostResultArea.classList.add('hidden'); hostEndGameDiv.classList.remove('hidden'); let finalHtml = '表朝<th>المركز</th><th>اللاعب</th><th>النقاط</th></tr>'; data.finalLeaderboard.forEach((p, idx) => { finalHtml += `<tr><td>${idx+1}</td><td>${p.name}</td><td>${p.score}</td></tr>`; }); finalHtml += '</table>'; hostEndGameDiv.innerHTML = `<h2>🏆 نهاية اللعبة 🏆</h2>${finalHtml}`; } else if(currentRole === 'player') { playerGameArea.classList.add('hidden'); playerEndMessage.classList.remove('hidden'); let finalHtml = '表朝<th>المركز</th><th>اللاعب</th><th>النقاط</th><tr>'; data.finalLeaderboard.forEach((p, idx) => { finalHtml += `<tr><td>${idx+1}</td><td>${p.name}</td><td>${p.score}</td></tr>`; }); finalHtml += '</table>'; playerFinalRank.innerHTML = finalHtml; } isGameActive = false; });
-    socket.on('errorMessage', (msg) => { if(currentRole === 'player' && joinFormContainer && !joinFormContainer.classList.contains('hidden')) joinErrorDiv.innerText = msg; else alert(msg); if(msg.includes('بدأت') && currentRole==='player') setTimeout(() => resetToRoleSelection(), 2000); });
-    socket.on('hostDisconnected', () => { if(currentRole === 'player') { alert('المضيف غادر الغرفة، سيتم العودة إلى القائمة الرئيسية'); resetToRoleSelection(); } });
-    window.onbeforeunload = () => { if(roomCodeLocal && currentRole) socket.emit('leaveRoom', { roomCode: roomCodeLocal }); };
+    function showQuestionResult(res) {
+        correctStatsDiv.innerHTML = `✅ الإجابة الصحيحة: ${res.correctAnswer}<br> أصاب: ${res.correctCount}`;
+        let lbHtml = '表朝<th>#</th><th>اللاعب</th><th>النقاط</th></tr>';
+        res.leaderboard.forEach((p,idx) => {
+            lbHtml += `<tr><td>${idx+1}</td><td>${p.name}</td><td>${p.score}</td></tr>`;
+        });
+        lbHtml += '</table>';
+        leaderboardTableDiv.innerHTML = lbHtml;
+    }
+
+    startGameBtn.onclick = () => {
+        if(startGameBtn.disabled) return;
+        let qCount = parseInt(questionCountInput.value);
+        if(isNaN(qCount)) qCount=10;
+        qCount = Math.min(50, Math.max(10, qCount));
+        // اختيار أسئلة عشوائية
+        const shuffled = [...QUESTION_BANK];
+        for(let i=shuffled.length-1;i>0;i--) {
+            const j = Math.floor(Math.random()*(i+1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        const questions = shuffled.slice(0, qCount);
+        db.ref(`rooms/${roomCode}`).update({
+            gameActive: true,
+            questionsList: questions,
+            currentQuestionIndex: -1,
+            scores: {},
+            leaderboard: []
+        }).then(() => {
+            nextQuestion();
+        });
+    };
+
+    function nextQuestion() {
+        const roomRef = db.ref(`rooms/${roomCode}`);
+        roomRef.once('value', (snap) => {
+            const data = snap.val();
+            if(!data || !data.gameActive) return;
+            let idx = (data.currentQuestionIndex || -1) + 1;
+            if(idx >= data.questionsList.length) {
+                endGame();
+                return;
+            }
+            const q = data.questionsList[idx];
+            const duration = 10;
+            const questionData = {
+                text: q.text,
+                options: q.options,
+                correct: q.correct,
+                duration: duration,
+                startTime: Date.now()
+            };
+            roomRef.update({
+                currentQuestionIndex: idx,
+                currentQuestion: questionData,
+                answers: {},
+                questionStartTime: Date.now()
+            });
+            // حذف النتيجة السابقة
+            roomRef.child('questionResult').remove();
+            // بعد 10 ثوانٍ احسب النتيجة
+            setTimeout(() => {
+                processQuestionResult(idx);
+            }, duration * 1000);
+        });
+    }
+
+    function processQuestionResult(qIndex) {
+        const roomRef = db.ref(`rooms/${roomCode}`);
+        roomRef.once('value', (snap) => {
+            const data = snap.val();
+            if(!data || data.currentQuestionIndex !== qIndex) return;
+            const q = data.questionsList[qIndex];
+            const answers = data.answers || {};
+            const playersSnap = data.players || {};
+            const scores = data.scores || {};
+            // ترتيب الإجابات حسب الوقت
+            const correctAnswers = [];
+            for(let [pid, ans] of Object.entries(answers)) {
+                if(ans.answerIndex === q.correct) {
+                    correctAnswers.push({ pid, timestamp: ans.timestamp });
+                }
+            }
+            correctAnswers.sort((a,b) => a.timestamp - b.timestamp);
+            const pointsSchedule = [1000,800,600,400,200,100,100];
+            const newScores = {...scores};
+            const pointsAwarded = [];
+            correctAnswers.forEach((ca, idx) => {
+                let pts = idx < pointsSchedule.length ? pointsSchedule[idx] : 100;
+                newScores[ca.pid] = (newScores[ca.pid] || 0) + pts;
+                pointsAwarded.push({ playerId: ca.pid, points: pts });
+            });
+            // بناء لوحة المتصدرين
+            let leaderboard = [];
+            for(let [pid, scr] of Object.entries(newScores)) {
+                let name = playersSnap[pid]?.name || "لاعب";
+                leaderboard.push({ name, score: scr });
+            }
+            leaderboard.sort((a,b)=>b.score-a.score);
+            roomRef.update({
+                scores: newScores,
+                leaderboard: leaderboard,
+                questionResult: {
+                    correctAnswer: q.options[q.correct],
+                    correctCount: correctAnswers.length,
+                    leaderboard: leaderboard,
+                    pointsAwarded: pointsAwarded
+                }
+            });
+        });
+    }
+
+    function endGame() {
+        db.ref(`rooms/${roomCode}`).once('value', (snap) => {
+            const data = snap.val();
+            const leaderboard = data.leaderboard || [];
+            db.ref(`rooms/${roomCode}`).update({
+                gameOver: true,
+                gameActive: false
+            });
+        });
+    }
+
+    nextQuestionBtn.onclick = () => {
+        nextQuestion();
+        hostResultArea.classList.add('hidden');
+        hostGameArea.classList.remove('hidden');
+    };
+
+    // ------------------- اللاعب -------------------
+    joinBtn.onclick = () => {
+        const code = joinRoomCode.value.trim();
+        const name = joinPlayerName.value.trim();
+        if(!code || code.length !== 6) { joinError.innerText = "الرمز 6 أرقام"; return; }
+        if(!name) { joinError.innerText = "أدخل اسمك"; return; }
+        roomCode = code;
+        playerName = name;
+        playerId = "player_"+Date.now()+"_"+Math.random();
+        const playerRef = db.ref(`rooms/${roomCode}/players/${playerId}`);
+        playerRef.set({ name: playerName }).then(() => {
+            joinForm.classList.add('hidden');
+            playerWaitingDiv.classList.remove('hidden');
+            playerRoomCodeSpan.innerText = roomCode;
+            playerNameSpan.innerText = playerName;
+            listenToGameForPlayer();
+        }).catch(err => {
+            joinError.innerText = "الغرفة غير موجودة أو خطأ";
+        });
+    };
+
+    function listenToGameForPlayer() {
+        const roomRef = db.ref(`rooms/${roomCode}`);
+        roomRef.on('value', (snap) => {
+            const data = snap.val();
+            if(!data) { alert("الغرفة أغلقت"); resetToRoleSelection(); return; }
+            if(data.gameActive === true && playerWaitingDiv && !playerWaitingDiv.classList.contains('hidden')) {
+                playerWaitingDiv.classList.add('hidden');
+                playerGameArea.classList.remove('hidden');
+                isGameActive = true;
+            }
+            if(data.currentQuestion && !hasAnswered) {
+                displayPlayerQuestion(data.currentQuestion);
+            }
+            if(data.questionResult) {
+                if(data.questionResult.pointsAwarded) {
+                    const myPoints = data.questionResult.pointsAwarded.find(p => p.playerId === playerId);
+                    if(myPoints) playerFeedback.innerHTML = `🎉 +${myPoints.points} نقطة!`;
+                    else playerFeedback.innerHTML = `❌ الإجابة: ${data.questionResult.correctAnswer}`;
+                }
+                if(data.leaderboard) renderPlayerLeaderboard(data.leaderboard);
+            }
+            if(data.gameOver) {
+                playerGameArea.classList.add('hidden');
+                playerEndMessage.classList.remove('hidden');
+                if(data.leaderboard) {
+                    let html = '表朝<th>#</th><th>اللاعب</th><th>النقاط</th></tr>';
+                    data.leaderboard.forEach((p,idx) => {
+                        html += `<tr><td>${idx+1}</td><td>${p.name}</td><td>${p.score}</td></tr>`;
+                    });
+                    html += '</table>';
+                    playerFinalRank.innerHTML = html;
+                }
+            }
+        });
+    }
+
+    function displayPlayerQuestion(qData) {
+        hasAnswered = false;
+        playerQuestionText.innerText = qData.text;
+        playerOptionsDiv.innerHTML = '';
+        qData.options.forEach((opt, idx) => {
+            const btn = document.createElement('div');
+            btn.className = 'option-btn';
+            btn.innerText = opt;
+            btn.onclick = () => {
+                if(hasAnswered) { playerFeedback.innerText = "سبق أن أجبت!"; return; }
+                hasAnswered = true;
+                const answerData = {
+                    answerIndex: idx,
+                    timestamp: Date.now()
+                };
+                db.ref(`rooms/${roomCode}/answers/${playerId}`).set(answerData);
+                playerFeedback.innerText = "✅ تم استلام إجابتك!";
+                // تعطيل الخيارات
+                document.querySelectorAll('#playerOptions .option-btn').forEach(b => {
+                    b.style.pointerEvents = 'none';
+                    b.classList.add('disabled-opt');
+                });
+            };
+            playerOptionsDiv.appendChild(btn);
+        });
+        playerTimerSpan.innerText = `⏱ ${qData.duration}`;
+        if(timerInterval) clearInterval(timerInterval);
+        let sec = qData.duration;
+        timerInterval = setInterval(() => {
+            sec--;
+            playerTimerSpan.innerText = `⏱ ${sec}`;
+            if(sec<=0) clearInterval(timerInterval);
+        },1000);
+    }
+
+    function renderPlayerLeaderboard(leaderboard) {
+        let html = '表朝<th>#</th><th>اللاعب</th><th>النقاط</th></tr>';
+        leaderboard.forEach((p,idx) => {
+            html += `<tr><td>${idx+1}</td><td>${p.name}</td><td>${p.score}</td></tr>`;
+        });
+        html += '</table>';
+        playerLeaderboardTable.innerHTML = html;
+    }
+
+    // تنظيف عند الخروج
+    window.onbeforeunload = () => {
+        if(roomCode && playerId) {
+            db.ref(`rooms/${roomCode}/players/${playerId}`).remove();
+        }
+    };
 </script>
 </body>
 </html>
