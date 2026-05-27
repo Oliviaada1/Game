@@ -30,16 +30,18 @@
         .leaderboard table { width: 100%; border-collapse: collapse; }
         .leaderboard th, .leaderboard td { padding: 8px; border-bottom: 1px solid #ccc; text-align: right; }
         .correct-stats { background: #c5e0d6; border-radius: 20px; padding: 12px; margin: 10px 0; }
-        input, .question-count-selector { padding: 12px 18px; border-radius: 60px; border: 1px solid #ccc; width: auto; margin: 5px; font-size: 1rem; }
+        input { padding: 12px 18px; border-radius: 60px; border: 1px solid #ccc; width: 220px; margin: 5px; font-size: 1rem; text-align: center; }
         .flex-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-        .join-form { background: #fff5e6; border-radius: 40px; padding: 20px; margin-top: 20px; text-align: center; }
-        .join-form input { width: 200px; text-align: center; letter-spacing: 2px; }
-        @media (max-width: 700px) { .game-container { padding: 12px; } .room-code { font-size: 1.2rem; } }
+        .join-form { background: #fff5e6; border-radius: 40px; padding: 30px; margin-top: 20px; text-align: center; }
+        .join-form input { width: 250px; font-size: 1.2rem; letter-spacing: 2px; }
+        .back-btn { background: #6c757d; margin-top: 20px; }
+        .error-msg { color: #d9534f; margin-top: 10px; font-weight: bold; }
     </style>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
 <div class="game-container" id="app">
+    <!-- شاشة اختيار الدور (تظهر أولاً) -->
     <div id="roleScreen" class="role-selector">
         <div class="role-card" onclick="selectRole('host')"><h2>🎤 أنشئ غرفة</h2><p>كن المضيف وابدأ اللعبة</p></div>
         <div class="role-card" onclick="selectRole('player')"><h2>🎮 انضم كلاعب</h2><p>أدخل رمز الغرفة واسمك</p></div>
@@ -59,18 +61,19 @@
             <div id="hostResultArea" class="hidden"><div class="correct-stats" id="correctStats"></div><div id="hostLeaderboard" class="leaderboard"><h3>🏆 قائمة المتصدرين</h3><div id="leaderboardTable"></div></div><button id="nextQuestionBtn" style="background:#2c5f8a;">➡ السؤال التالي</button></div>
         </div>
         <div id="hostEndGame" class="hidden leaderboard"><h2>🎉 نهاية اللعبة 🎉</h2><div id="finalRanking"></div></div>
+        <button class="back-btn" onclick="resetToRoleSelection()">↺ العودة إلى القائمة الرئيسية</button>
     </div>
 
-    <!-- لوحة اللاعب مع حقول إدخال واضحة -->
+    <!-- لوحة اللاعب مع نموذج إدخال الرمز والاسم -->
     <div id="playerPanel" class="panel hidden">
         <div class="room-header"><div>🎮 مرحباً: <span id="playerNameSpan">---</span></div><div>🏷 الغرفة: <span id="playerRoomCodeSpan">------</span></div></div>
-        <!-- نموذج الانضمام (يظهر أولاً) -->
+        <!-- نموذج الانضمام -->
         <div id="joinFormContainer" class="join-form">
             <h3>🔑 أدخل رمز الغرفة واسمك</h3>
             <input type="text" id="joinRoomCode" maxlength="6" placeholder="رمز الغرفة (6 أرقام)" style="text-align: center; font-size: 1.5rem; letter-spacing: 4px;">
             <input type="text" id="joinPlayerName" placeholder="اسمك">
             <button id="joinRoomBtn">🚪 انضم إلى الغرفة</button>
-            <div id="joinError" style="color:red; margin-top:10px;"></div>
+            <div id="joinError" class="error-msg"></div>
         </div>
         <div id="playerWaiting" class="players-list hidden">⏳ انتظار بدء المضيف للعبة...</div>
         <div id="playerGameArea" class="hidden">
@@ -78,14 +81,19 @@
             <div id="playerLeaderboardPanel" class="leaderboard"><h3>📊 لوحة المتصدرين</h3><div id="playerLeaderboardTable"></div></div>
         </div>
         <div id="playerEndMessage" class="hidden correct-stats"><h3>انتهت اللعبة! شكراً للمشاركة</h3><div id="playerFinalRank"></div></div>
+        <button class="back-btn" onclick="resetToRoleSelection()">↺ العودة إلى القائمة الرئيسية</button>
     </div>
 </div>
 
 <script>
     const socket = io();
-    let currentRole = null, roomCodeLocal = null, playerNameLocal = null, isGameActive = false, hasAnswered = false;
+    let currentRole = null;      // 'host' or 'player'
+    let roomCodeLocal = null;
+    let playerNameLocal = null;
+    let isGameActive = false;
+    let hasAnswered = false;
 
-    // العناصر
+    // عناصر DOM
     const roleScreen = document.getElementById('roleScreen');
     const hostPanel = document.getElementById('hostPanel');
     const playerPanel = document.getElementById('playerPanel');
@@ -99,7 +107,6 @@
     const joinRoomBtn = document.getElementById('joinRoomBtn');
     const joinErrorDiv = document.getElementById('joinError');
 
-    // باقي العناصر (كما هي)
     const hostRoomCodeSpan = document.getElementById('hostRoomCode');
     const hostPlayersListDiv = document.getElementById('hostPlayersList');
     const startGameBtn = document.getElementById('startGameBtn');
@@ -122,7 +129,8 @@
     const playerEndMessage = document.getElementById('playerEndMessage');
     const playerFinalRank = document.getElementById('playerFinalRank');
 
-    function selectRole(role) {
+    // دالة اختيار الدور
+    window.selectRole = function(role) {
         currentRole = role;
         roleScreen.classList.add('hidden');
         if(role === 'host') {
@@ -135,8 +143,28 @@
             playerWaitingDiv.classList.add('hidden');
             playerGameArea.classList.add('hidden');
             playerEndMessage.classList.add('hidden');
+            joinErrorDiv.innerText = '';
+            // تفريغ الحقول
+            joinRoomCodeInput.value = '';
+            joinPlayerNameInput.value = '';
         }
-    }
+    };
+
+    // العودة إلى شاشة الاختيار
+    window.resetToRoleSelection = function() {
+        // إعلام الخادم بمغادرة الغرفة إذا كان موجوداً
+        if(roomCodeLocal && currentRole) {
+            socket.emit('leaveRoom', { roomCode: roomCodeLocal });
+        }
+        currentRole = null;
+        roomCodeLocal = null;
+        hostPanel.classList.add('hidden');
+        playerPanel.classList.add('hidden');
+        roleScreen.classList.remove('hidden');
+        // إعادة تعيين بعض المتغيرات
+        isGameActive = false;
+        hasAnswered = false;
+    };
 
     // إنشاء غرفة للمضيف
     function createRoom() {
@@ -146,7 +174,7 @@
                 hostRoomCodeSpan.innerText = roomCodeLocal;
             } else {
                 alert('خطأ في إنشاء الغرفة');
-                location.reload();
+                resetToRoleSelection();
             }
         });
     }
@@ -180,11 +208,10 @@
     }
 
     joinRoomBtn.onclick = joinRoom;
-    // أيضاً بالضغط على Enter
     joinRoomCodeInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') joinRoom(); });
     joinPlayerNameInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') joinRoom(); });
 
-    // باقي دوال التحديث (كما هي من الكود السابق مع تعديلات بسيطة)
+    // باقي دوال التحديث (نفس الكود السابق مع تحسينات بسيطة)
     function updatePlayersList(players) {
         if(!players || players.length===0) {
             hostPlayersListDiv.innerHTML = "🚫 لا يوجد لاعبون بعد";
@@ -283,6 +310,7 @@
             playerEndMessage.classList.add('hidden');
             playerFeedback.innerText = '';
             hasAnswered = false;
+            isGameActive = true;
         }
     });
 
@@ -314,7 +342,6 @@
                 playerOptionsDiv.appendChild(optDiv);
             });
             playerTimerSpan.innerText = `⏱ ${data.duration}`;
-            isGameActive = true;
         }
     });
 
@@ -379,13 +406,13 @@
         } else {
             alert(msg);
         }
-        if(msg.includes('بدأت') && currentRole==='player') setTimeout(() => location.reload(), 2000);
+        if(msg.includes('بدأت') && currentRole==='player') setTimeout(() => resetToRoleSelection(), 2000);
     });
 
     socket.on('hostDisconnected', () => {
         if(currentRole === 'player') {
-            alert('المضيف غادر الغرفة، سيتم إعادة التوجيه');
-            location.reload();
+            alert('المضيف غادر الغرفة، سيتم العودة إلى القائمة الرئيسية');
+            resetToRoleSelection();
         }
     });
 
